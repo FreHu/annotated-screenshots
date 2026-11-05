@@ -1,0 +1,11 @@
+{
+  "name": "annotated-screenshots",
+  "version": "0.1.0",
+  "description": "Annotated screenshots, demo GIFs and screen recordings of websites and VS Code extensions, with Playwright.",
+  "author": {
+    "name": "FreHu",
+    "url": "https://github.com/FreHu"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/FreHu/annotated-screenshots"
+}

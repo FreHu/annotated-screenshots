@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbit Shop</title>
+<style>
+  /* Deliberately hostile to overlays: a global reset, a sticky header with a high z-index, a transformed section. */
+  * { margin: 0; padding: 0; box-sizing: border-box; font: inherit; color: inherit; line-height: 1.2; }
+  div { display: grid; }
+  body { font: 16px/1.5 Georgia, serif; color: #1d2433; background: #f6f4ef; }
+  header { position: sticky; top: 0; z-index: 9999; display: flex; justify-content: space-between; align-items: center;
+           padding: 14px 32px; background: #1d2433; color: #fff; }
+  header nav a { margin-left: 22px; color: #cfd6e6; text-decoration: none; }
+  .hero { padding: 72px 32px; display: grid; gap: 18px; max-width: 760px; }
+  .hero h1 { font-size: 44px; font-weight: 700; line-height: 1.1; }
+  .cta { justify-self: start; padding: 12px 22px; border-radius: 8px; background: #e2553f; color: #fff; font-weight: 700; border: 0; cursor: pointer; }
+  .plans { transform: translateZ(0); display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 0 32px 64px; }
+  .plan { background: #fff; border-radius: 10px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .plan h2 { font-weight: 700; font-size: 20px; }
+  .price { font-size: 30px; font-weight: 700; margin: 8px 0; }
+  .faq { padding: 32px; margin-top: 900px; }
+  footer { padding: 32px; background: #1d2433; color: #cfd6e6; }
+  #signup-form { display: none; padding: 22px 32px; background: #fff3c4; }
+  #signup-form.open { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Orbit Shop</strong>
+  <nav><a href="#plans">Plans</a><a href="#faq">FAQ</a><a href="#contact">Contact</a></nav>
+</header>
+<section class="hero">
+  <h1>Satellite parts, delivered to low Earth orbit.</h1>
+  <p>Order before 14:00 UTC and your parts launch with the next rideshare.</p>
+  <button class="cta" id="cta" onclick="document.getElementById('signup-form').classList.add('open')">Start a free trial</button>
+</section>
+<section id="signup-form"><p>Thanks! A trial account is on its way to your inbox.</p></section>
+<section class="plans" id="plans">
+  <article class="plan"><h2>Hobby</h2><p class="price">€0</p><p>One CubeSat, community support.</p></article>
+  <article class="plan"><h2>Team</h2><p class="price">€49</p><p>Ten satellites, shared mission control.</p></article>
+  <article class="plan"><h2>Fleet</h2><p class="price">€399</p><p>Unlimited satellites, a named flight engineer.</p></article>
+</section>
+<section class="faq" id="faq">
+  <h2>Frequently asked questions</h2>
+  <p id="refund">Refunds: within 30 days of launch, as long as the part has not left the atmosphere.</p>
+</section>
+<footer id="contact">Orbit Shop is a fictional company used for demos.</footer>
+</body>
+</html>

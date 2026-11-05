@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "annotated-screenshots",
+  "description": "Annotated screenshots, demo GIFs and screen recordings of websites and VS Code extensions, with Playwright.",
+  "owner": {
+    "name": "FreHu",
+    "url": "https://github.com/FreHu"
+  },
+  "plugins": [
+    {
+      "name": "annotated-screenshots",
+      "description": "Callouts, markers and outlines on screenshots; demo GIFs; screen recordings. For websites and VS Code extensions.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "annotated-screenshots",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Annotated screenshots, demo GIFs and screen recordings of websites and VS Code extensions, with Playwright. A Claude Code skill plus copy-in library code.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "example": "node examples/website.mjs",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "gifenc": "1.0.3",
+    "omggif": "1.0.10"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}
