@@ -21,7 +21,7 @@ The project brings its own `playwright` (websites) or `playwright-core` (Electro
 
 ## Pick a mode
 
-- **Onto the finished screenshot** (`measureAll` → `page.screenshot()` → `annotateScreenshot(canvas, png, measured)`). The default for websites. The page's CSS can't touch the drawing, and full-page captures work (`measureAll(…, { fullPage: true })`). The clean PNG stays untouched; keep it when the screenshot is evidence. This mode also annotates an image from elsewhere: give targets as `{ rect: {x, y, width, height} }` in image pixels.
+- **Onto the finished screenshot** (`measureAll` → `page.screenshot()` → `annotateScreenshot(canvas, png, measured)`). The default for websites. The page's CSS can't touch the drawing, and full-page captures work (`measureAll(…, { fullPage: true })`). The clean PNG stays untouched; keep it when the screenshot is evidence. With a [redaction](#redaction) it is also the file not to publish. This mode also annotates an image from elsewhere: give targets as `{ rect: {x, y, width, height} }` in image pixels.
 - **Live overlay** (`annotate(page, …)`, then your own `page.screenshot()`, then `clearAnnotations`). Needed for video, and for Electron apps, which have no second page to draw in.
 
 `canvas` comes from `openCanvasPage(context)`, in a context with `deviceScaleFactor: 1`. For a capture taken at `deviceScaleFactor: 2`, pass `{ scale: 2 }`.
@@ -32,8 +32,23 @@ The project brings its own `playwright` (websites) or `playwright-core` (Electro
 - `{ target, text, above | below }`: label that many px above or below
 - `{ target, marker: 1 }`: numbered circle
 - `{ target, box: true, text?, above?|below? }`: outline
+- `{ target, redact: true }`: opaque cover in `style.redaction` (default black); `redact: "#fff"` for another colour. Add `text`, `marker` or `box` to label it. See [Redaction](#redaction).
 
 Targets: `{ locator }`, `{ locators: [a, b] }` (box around several), `{ rect }`, or an adapter's own targets via `{ resolve }` (e.g. `resolveEditorTarget`). Targets are measured from the live page, so a rerun after a UI change still points at the right element. Never hard-code coordinates for a live page.
+
+## Redaction
+
+For what demo data can't replace: an email in a screenshot someone took by hand, a signed-in account in a title bar.
+- **An opaque fill, never a blur or pixelation**: those can sometimes be reversed. A colour that is invalid or not fully opaque is refused with an error.
+- **Drawn under every callout**, whatever the order of the list, so a label can sit on a redacted area and a redaction never hides a label.
+- **Onto a finished screenshot:** every pixel the target's box touches becomes the fill colour (edges round outwards to whole pixels). **Publish only the annotated output.** The clean screenshot still shows what is covered: keep it private, or don't write it to disk. For an image from elsewhere, use `{ rect }` in image pixels.
+- **The cover is the target's box.** Text that overflows its element shows beside it. Target the element that contains it, or `{ locators: [a, b] }` for a box around both.
+- **GIFs:** draw the redaction into every still. A frame stores only the pixels that changed; the rest shows the frame before, which had the same colour there. So a redaction in every still is covered in every frame, crossfades included. Check the frames `verifyGif` returns.
+- **Live overlay (video, Electron):**
+  - Call `annotate` with the redaction **before** `startRecording` / `startFrameCapture`. It returns once the cover is painted, so no frame shows the element.
+  - The cover stays where the element was measured. The element itself is also made transparent until `clearAnnotations`, so scrolling or a layout change can't move it out from under the cover. A `{ rect }` redaction has no element to hide: it covers a fixed area of the viewport only.
+  - To change callouts between steps, call `annotate` again with the redaction in the list. It swaps the drawing in one step. `clearAnnotations` shows the element again.
+  - A page that re-renders the element (a new DOM node) shows the new one. Annotate again after such a step, and check the recording's stills.
 
 ## GIFs
 
@@ -95,6 +110,6 @@ Installed apps (Cursor, TIDAL, Slack, …) can be driven too. Tested on Cursor a
 
 ## Before publishing an image
 
-- Demo data uses invented people and companies. Before publishing, check every image for the real user's name, email, file paths, avatars or account details. Tools often show them unasked: a git identity on pending changes, a signed-in account in a title bar.
+- Demo data uses invented people and companies. Before publishing, check every image for the real user's name, email, file paths, avatars or account details. Tools often show them unasked: a git identity on pending changes, a signed-in account in a title bar. What can't be replaced gets a [redaction](#redaction).
 - Look at every output PNG (and every GIF frame) yourself before calling it done.
 - Make generation a script in the project that regenerates every image. Time each scene by phase (setup, launch, capture, encode, verify), so a slow scene shows where its time goes.

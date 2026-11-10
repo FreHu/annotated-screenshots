@@ -34,6 +34,38 @@ async function pixel(canvas, png, x, y) {
 }
 const near = (rgb, want, tolerance = 24) => rgb.every((v, i) => Math.abs(v - want[i]) <= tolerance);
 
+/**
+ * Every colour in a PNG or JPEG within a rectangle (CSS px, times `scale` image px), with its pixel
+ * count. Counts each pixel the rectangle touches, edges included. No rectangle: the whole image.
+ * @returns {Promise<Map<string, number>>} "r,g,b" → pixels
+ */
+async function colours(canvas, image, rect, scale = 1) {
+  const area = rect && {
+    x: Math.floor(rect.x * scale), y: Math.floor(rect.y * scale),
+    right: Math.ceil((rect.x + rect.width) * scale), bottom: Math.ceil((rect.y + rect.height) * scale),
+  };
+  return new Map(await canvas.evaluate(async ({ src, area }) => {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const a = area ?? { x: 0, y: 0, right: c.width, bottom: c.height };
+    const data = ctx.getImageData(a.x, a.y, a.right - a.x, a.bottom - a.y).data;
+    const counts = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts];
+  }, { src: `data:image/png;base64,${image.toString("base64")}`, area }));
+}
+const rgb = key => key.split(",").map(Number);
+const black = [0, 0, 0];
+const ctaRed = [0xe2, 0x55, 0x3f]; // the fixture's button: nothing else on the page is this colour
+
 async function sitePage(options = {}) {
   const context = await browser.newContext({ viewport, ...options });
   const page = await context.newPage();
@@ -218,6 +250,127 @@ test("frame capture: repaint frames become a GIF whose holds add up to the recor
   const check = await verifyGif(canvas, gif, frames);
   assert.equal(check.frameCount, frames.length);
   for (const e of check.keyFrameErrors) { assert.ok(e < 3, `frame error ${e} < 3`); }
+  await context.close(); await canvas.context().close();
+});
+
+test("redaction onto a screenshot: every pixel it touches is the fill colour, at 1× and 2×", async () => {
+  for (const scale of [1, 2]) {
+    const { context, page, canvas } = await sitePage({ deviceScaleFactor: scale });
+    const measured = await measureAll(page, [
+      { target: { locator: page.locator("#cta") }, redact: true },
+      { target: { locator: page.locator(".plan").nth(1) }, redact: "#2b6cb0" },
+    ]);
+    const png = await page.screenshot();
+    const out = await annotateScreenshot(canvas, png, measured, { scale });
+    for (const [m, fill] of [[measured[0], "0,0,0"], [measured[1], "43,108,176"]]) {
+      assert.ok((await colours(canvas, png, m.rect.box, scale)).size > 1, "the source has something to hide there");
+      assert.deepEqual([...(await colours(canvas, out, m.rect.box, scale)).keys()], [fill], `${scale}×: only ${fill} under the redaction`);
+    }
+    await context.close(); await canvas.context().close();
+  }
+});
+
+test("redaction sits under callouts, whatever the order they're listed in", async () => {
+  const { context, page, canvas } = await sitePage();
+  const cta = page.locator("#cta");
+  const [callout] = await measureAll(page, [{ target: { locator: cta }, text: "CTA", labelX: 520 }]);
+  const y = callout.rect.y + callout.rect.height / 2;
+  const out = await annotateScreenshot(canvas, await page.screenshot(), [
+    callout,
+    ...(await measureAll(page, [{ target: { rect: { x: 0, y: y - 30, width: viewport.width, height: 60 } }, redact: true }])),
+  ]);
+  assert.ok(near(await pixel(canvas, out, 520 + 6, y - 8), accent), "the label shows on top of the redaction");
+  assert.ok(near(await pixel(canvas, out, 1000, y), black, 0), "the redaction covers the rest of the row");
+  await context.close(); await canvas.context().close();
+});
+
+test("redaction on a fixed rectangle of an image no page is behind", async () => {
+  const canvas = await openCanvasPage(await browser.newContext());
+  // A stand-in for a screenshot someone took by hand.
+  const png = Buffer.from(await canvas.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 420; c.height = 120;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = "#222"; ctx.font = "24px sans-serif"; ctx.fillText("Signed in as ada@example.com", 12, 50);
+    return c.toDataURL("image/png").split(",")[1];
+  }), "base64");
+  const email = { x: 152.5, y: 26, width: 210, height: 34 };
+  const out = await annotateScreenshot(canvas, png, await measureAll(canvas, [
+    { target: { rect: email }, redact: "#7a1f2b" },
+  ]));
+  assert.ok((await colours(canvas, png, email)).size > 1, "the source has text there");
+  assert.deepEqual([...(await colours(canvas, out, email)).keys()], ["122,31,43"]);
+  await canvas.context().close();
+});
+
+test("redaction in a GIF from stills: covered in every decoded frame, fades and a moved target included", async () => {
+  const { context, page, canvas } = await sitePage();
+  // Not black: a frame whose pixels decode as transparent would read as black and pass.
+  const fill = [0x2b, 0x6c, 0xb0];
+  const cta = { target: { locator: page.locator("#cta") }, redact: "#2b6cb0" };
+  const stills = [];
+  const still = async ({ holdMs, fadeMs }) => {
+    const measured = await measureAll(page, [cta]);
+    stills.push({ png: await annotateScreenshot(canvas, await page.screenshot(), measured), holdMs, fadeMs, box: measured[0].rect.box });
+  };
+  await still({ holdMs: 400, fadeMs: 200 });
+  await page.click("#cta");
+  await still({ holdMs: 400 });
+  await page.evaluate(() => scrollTo(0, 120));
+  await still({ holdMs: 400 });
+  assert.ok(stills[2].box.y < stills[1].box.y - 100, "the last still has the button somewhere else");
+  const gif = await encodeGif(canvas, stills);
+  const check = await verifyGif(canvas, gif, stills);
+  for (const e of check.keyFrameErrors) { assert.ok(e < 1, `held frame error ${e} < 1`); }
+  // Decoded frames: the first still, 4 fade steps into the second, the second, the third.
+  const shownBox = [0, 0, 0, 0, 0, 1, 2].map(i => stills[i].box);
+  assert.equal(check.frames.length, shownBox.length);
+  for (const [i, frame] of check.frames.entries()) {
+    const found = [...(await colours(canvas, frame, shownBox[i])).keys()];
+    assert.equal(found.length, 1, `frame ${i}: one colour under the redaction, got ${found.length}`);
+    assert.ok(near(rgb(found[0]), fill, 4), `frame ${i}: ${found[0]} is the fill`);
+  }
+  await context.close(); await canvas.context().close();
+});
+
+test("redaction as a live overlay: covers and hides the element until clearAnnotations; refuses a see-through colour", async () => {
+  const { context, page, canvas } = await sitePage();
+  const cta = page.locator("#cta");
+  await cta.evaluate(el => { el.style.opacity = "0.9"; });
+  await annotate(page, [{ target: { locator: cta }, redact: true }]);
+  const box = await cta.boundingBox();
+  assert.deepEqual([...(await colours(canvas, await page.screenshot(), box)).keys()], ["0,0,0"]);
+  assert.equal(await cta.evaluate(el => getComputedStyle(el).opacity), "0", "the element itself is hidden too");
+  await clearAnnotations(page);
+  assert.equal(await cta.evaluate(el => el.style.opacity), "0.9", "its own opacity is back");
+  for (const fill of ["transparent", "rgba(0, 0, 0, 0.5)", "#nope", "var(--unset)"]) {
+    await assert.rejects(annotate(page, [{ target: { locator: cta }, redact: fill }]), /opaque/, fill);
+    assert.equal(await page.locator("#annotated-screenshots-overlay").count(), 0, `nothing drawn for ${fill}`);
+  }
+  await context.close(); await canvas.context().close();
+});
+
+test("redaction while recording: drawn before capture starts, the element shows in no frame, scrolling included", async () => {
+  const { context, page, canvas } = await sitePage();
+  const redaction = { target: { locator: page.locator("#cta") }, redact: true };
+  await annotate(page, [redaction]);
+  const box = await page.locator("#cta").boundingBox();
+  const capture = await startFrameCapture(page, { size: viewport, actions: false });
+  // Callouts come and go by replacing the drawing; clearAnnotations would also show the element.
+  await annotate(page, [redaction, { target: { locator: page.locator("#cta") }, text: "Redacted", labelX: 520 }]);
+  await page.waitForTimeout(300);
+  await annotate(page, [redaction]);
+  await page.mouse.wheel(0, 120); // the cover stays where the button was; the button scrolls up
+  await page.waitForTimeout(500);
+  const frames = await capture.stop();
+  await clearAnnotations(page);
+  assert.ok(frames.length >= 2, `${frames.length} frames`);
+  assert.ok(near(await pixel(canvas, frames[0].png, box.x + box.width / 2, box.y + box.height / 2), black, 16), "the first frame has the cover");
+  for (const [i, f] of frames.entries()) {
+    const red = [...(await colours(canvas, f.png)).entries()].filter(([c]) => near(rgb(c), ctaRed)).reduce((n, [, count]) => n + count, 0);
+    assert.equal(red, 0, `frame ${i}: ${red} pixels of the button's red`);
+  }
   await context.close(); await canvas.context().close();
 });
 

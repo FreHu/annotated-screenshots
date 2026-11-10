@@ -24,8 +24,13 @@ const canvas = await openCanvasPage(context); // drawing and decoding surface
 await page.goto(site);
 await page.evaluate(() => document.fonts.ready);
 
-// 1. Full-page screenshot, annotated afterwards: the clean capture stays as it was taken.
+// The signed-in account's email, covered in every image below.
+const account = { target: { locator: page.locator("#account") }, redact: true };
+
+// 1. Full-page screenshot, annotated afterwards. The clean capture stays as it was taken,
+// email included: full-page-annotated.png is the one to publish, full-page.png is not.
 const measured = await measureAll(page, [
+  { ...account, text: "Account redacted", below: 14 },
   { target: { locator: page.locator("#cta") }, text: "One call to action above the fold", labelX: 520 },
   { target: { locators: [page.locator(".plan").nth(1)] }, box: true, text: "Most popular plan", above: 8 },
   { target: { locator: page.locator("#refund") }, text: "Refund terms sit 900 px below the plans", above: 46 },
@@ -36,15 +41,16 @@ writeFileSync(join(out, "full-page-annotated.png"), await annotateScreenshot(can
 
 // 2. A three-frame GIF, annotated with the live overlay.
 const frames = [];
-await annotate(page, [{ target: { locator: page.locator("#cta") }, text: "1. Start a trial", labelX: 520 }]);
+await annotate(page, [account, { target: { locator: page.locator("#cta") }, text: "1. Start a trial", labelX: 520 }]);
 frames.push({ png: await page.screenshot(), holdMs: 1600, fadeMs: 300 });
 await clearAnnotations(page);
 await page.click("#cta");
-await annotate(page, [{ target: { locator: page.locator("#signup-form p") }, text: "2. Confirmation shows inline", above: 40 }]);
+await annotate(page, [account, { target: { locator: page.locator("#signup-form p") }, text: "2. Confirmation shows inline", above: 40 }]);
 frames.push({ png: await page.screenshot(), holdMs: 1600, fadeMs: 300 });
 await clearAnnotations(page);
 await page.locator("#plans").scrollIntoViewIfNeeded();
 await annotate(page, [
+  account,
   { target: { locator: page.locator(".plan").nth(0) }, marker: 1 },
   { target: { locator: page.locator(".plan").nth(1) }, marker: 2 },
   { target: { locator: page.locator(".plan").nth(2) }, marker: 3 },
@@ -64,15 +70,19 @@ if (args.includes("--video")) {
   const rec = await browser.newContext({ viewport });
   const p = await rec.newPage();
   const recCanvas = await openCanvasPage(rec);
+  const recAccount = { target: { locator: p.locator("#account") }, redact: true };
+  // The redaction goes on before recording starts, and stays: the callout is replaced by
+  // annotating with the redaction alone, since clearAnnotations would show the email again.
   const flow = async () => {
     await p.goto(site);
     await p.evaluate(() => document.fonts.ready);
+    await annotate(p, [recAccount]);
     return p;
   };
   const act = async () => {
-    await annotate(p, [{ target: { locator: p.locator("#cta") }, text: "Start a trial", labelX: 520 }]);
+    await annotate(p, [recAccount, { target: { locator: p.locator("#cta") }, text: "Start a trial", labelX: 520 }]);
     await p.waitForTimeout(900);
-    await clearAnnotations(p);
+    await annotate(p, [recAccount]);
     await p.click("#cta");
     await p.waitForTimeout(1000);
     await p.locator("#plans").scrollIntoViewIfNeeded();

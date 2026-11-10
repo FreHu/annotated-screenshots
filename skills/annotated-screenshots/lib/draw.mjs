@@ -7,6 +7,7 @@ export const DEFAULT_STYLE = {
   accent: "#ffb02e",
   ink: "#1b1b1b",
   font: '600 13px "Segoe UI", system-ui, sans-serif',
+  redaction: "#000000",
 };
 
 /**
@@ -28,6 +29,32 @@ export function drawAnnotations({ items, style, rootId, mode, scale = 1 }) {
     height: mode === "overlay" ? "100vh" : `${document.documentElement.scrollHeight / scale}px`,
     pointerEvents: "none", zIndex: "2147483647", transform: scale === 1 ? "none" : `scale(${scale})`, transformOrigin: "0 0",
   });
+
+  // Redactions go in first, so every callout drawn after them sits on top.
+  const covers = [];
+  const pixel = mode === "overlay" ? window.devicePixelRatio : scale;
+  for (const item of items) {
+    if (!item.redact) { continue; }
+    const b = item.rect.box ?? item.rect;
+    if (!(b.width > 0 && b.height > 0)) {
+      throw new Error("a redaction needs a target with an area: { locator }, { locators } or { rect }");
+    }
+    // Rounded outwards to whole image pixels: a partly covered edge pixel would blend in what is under it.
+    const left = Math.floor(b.x * pixel) / pixel;
+    const top = Math.floor(b.y * pixel) / pixel;
+    const right = Math.ceil((b.x + b.width) * pixel) / pixel;
+    const bottom = Math.ceil((b.y + b.height) * pixel) / pixel;
+    const fill = item.redact === true ? style.redaction : item.redact;
+    const el = reset(document.createElement("div"));
+    // `important`, so not even a page's own !important rules can make the cover transparent.
+    for (const [k, v] of Object.entries({
+      position: "absolute", display: "block", left: `${left}px`, top: `${top}px`,
+      width: `${right - left}px`, height: `${bottom - top}px`, "background-color": fill, opacity: "1", visibility: "visible",
+    })) { el.style.setProperty(k, v, "important"); }
+    root.append(el);
+    covers.push({ el, fill });
+  }
+
   const svg = document.createElementNS(svgNs, "svg");
   svg.setAttribute("width", "100%");
   svg.setAttribute("height", "100%");
@@ -62,6 +89,7 @@ export function drawAnnotations({ items, style, rootId, mode, scale = 1 }) {
 
   for (const item of items) {
     const r = item.rect;
+    if (item.redact && !item.box && item.text === undefined && item.marker === undefined) { continue; }
     if (item.box) {
       const b = r.box ?? r;
       const el = reset(document.createElement("div"));
@@ -116,4 +144,18 @@ export function drawAnnotations({ items, style, rootId, mode, scale = 1 }) {
     }
   }
   document.body.append(root);
+
+  // Checked on the computed colour, i.e. what gets painted: a mistyped colour, `transparent`, an
+  // alpha below 1 or an unset var() would all leave what is under the cover readable.
+  const ctx = document.createElement("canvas").getContext("2d");
+  for (const { el, fill } of covers) {
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = "transparent"; // kept if the canvas can't parse the colour: fails safe
+    ctx.fillStyle = getComputedStyle(el).backgroundColor;
+    ctx.fillRect(0, 0, 1, 1);
+    if (ctx.getImageData(0, 0, 1, 1).data[3] !== 255) {
+      root.remove();
+      throw new Error(`a redaction needs an opaque CSS colour, got ${JSON.stringify(fill)}`);
+    }
+  }
 }

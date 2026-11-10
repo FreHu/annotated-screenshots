@@ -12,6 +12,7 @@ It ships as a [Claude Code](https://claude.com/claude-code) skill. Ask Claude fo
 - **Two ways to draw them:**
   - **Onto a finished screenshot.** The page's CSS can't interfere, full-page captures work, and the original PNG stays untouched (useful when the screenshot is evidence).
   - **As a live overlay on the page.** Needed for video and for Electron apps.
+- **Redaction**: an opaque fill over a locator or a fixed rectangle, under the callouts, in screenshots, GIFs and recordings. Not a blur or pixelation, which can sometimes be reversed. Drawn onto a finished screenshot, only the annotated output is safe to share: the untouched original still shows what the redaction covers, so don't publish it.
 - **Demo GIFs** from a list of stills, with optional crossfades. Each frame stores only what changed. The finished GIF is decoded again and compared with its stills, because image viewers often show only its first frame.
 - **Screen recordings** of any stretch of a session: a WebM with a pointer that follows the actions, or a GIF built from the recorded frames. See the caveats in [SKILL.md](skills/annotated-screenshots/SKILL.md#video-with-caveats).
 - **VS Code extensions**: targets for editor lines and the gutter, and notes on driving a pinned VS Code build through Playwright's Electron support.

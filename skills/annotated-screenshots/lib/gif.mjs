@@ -39,7 +39,8 @@ export function encodeRgbaGif(decoded, width, height) {
     // Store only what changed since the previous frame; the rest is transparent and
     // the previous frame shows through (dispose 1 = keep it). Compared against the
     // previous *source* frame: against its quantized version, palette rounding would
-    // mark every pixel of a held frame as changed.
+    // mark every pixel of a held frame as changed. A pixel shows through only where the
+    // previous frame had the same colour, so a redaction drawn into every still stays covered.
     const pixels = width * height;
     const changed = new Uint8Array(pixels);
     let changedCount = 0;

@@ -11,7 +11,7 @@
   body { font: 16px/1.5 Georgia, serif; color: #1d2433; background: #f6f4ef; }
   header { position: sticky; top: 0; z-index: 9999; display: flex; justify-content: space-between; align-items: center;
            padding: 14px 32px; background: #1d2433; color: #fff; }
-  header nav a { margin-left: 22px; color: #cfd6e6; text-decoration: none; }
+  header nav a, header nav .account { margin-left: 22px; color: #cfd6e6; text-decoration: none; }
   .hero { padding: 72px 32px; display: grid; gap: 18px; max-width: 760px; }
   .hero h1 { font-size: 44px; font-weight: 700; line-height: 1.1; }
   .cta { justify-self: start; padding: 12px 22px; border-radius: 8px; background: #e2553f; color: #fff; font-weight: 700; border: 0; cursor: pointer; }
@@ -28,7 +28,7 @@
 <body>
 <header>
   <strong>Orbit Shop</strong>
-  <nav><a href="#plans">Plans</a><a href="#faq">FAQ</a><a href="#contact">Contact</a></nav>
+  <nav><a href="#plans">Plans</a><a href="#faq">FAQ</a><a href="#contact">Contact</a><span class="account" id="account">ada.lovelace@example.com</span></nav>
 </header>
 <section class="hero">
   <h1>Satellite parts, delivered to low Earth orbit.</h1>
